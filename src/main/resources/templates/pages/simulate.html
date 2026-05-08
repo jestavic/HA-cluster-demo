@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Simulate — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <h1 class="page-title"><i class="bi bi-shuffle me-2"></i>Load Balancing Simulation</h1>
+        <p class="page-subtitle">Fire requests and watch the load balancer distribute them across nodes</p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="info-card h-100">
+                <h5 class="mb-3"><i class="bi bi-sliders me-2"></i>Controls</h5>
+                <div class="mb-3">
+                    <label class="form-label">Number of Requests</label>
+                    <input type="range" class="form-range" id="reqCount" min="1" max="50" value="10">
+                    <div class="d-flex justify-content-between small text-muted"><span>1</span><strong id="reqCountLabel">10 requests</strong><span>50</span></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Delay Between Requests (ms)</label>
+                    <input type="range" class="form-range" id="reqDelay" min="0" max="500" value="100" step="50">
+                    <div class="d-flex justify-content-between small text-muted"><span>0ms</span><strong id="reqDelayLabel">100ms</strong><span>500ms</span></div>
+                </div>
+                <button id="startBtn" class="btn btn-primary w-100 mb-2"><i class="bi bi-play-fill me-2"></i>Start Simulation</button>
+                <button id="clearBtn" class="btn btn-outline-secondary w-100"><i class="bi bi-trash me-2"></i>Clear</button>
+                <hr>
+                <p class="small text-muted">Requests go to <code>/api/simulate</code> via Nginx, which distributes them round-robin. Each response shows which node handled it.</p>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="info-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Node Distribution</h5>
+                    <div><span class="badge bg-success me-1" id="totalOk">0 OK</span><span class="badge bg-danger" id="totalErr">0 ERR</span></div>
+                </div>
+                <canvas id="distChart" height="120"></canvas>
+                <div class="row g-3 mt-2" id="nodeCounters"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Request Log</h5>
+            <span class="text-muted small" id="simStatus">Ready</span>
+        </div>
+        <div class="table-responsive" style="max-height:350px;overflow-y:auto;">
+            <table class="table table-sm mono-table mb-0">
+                <thead class="table-dark sticky-top"><tr><th>#</th><th>Node</th><th>Port</th><th>Latency</th><th>Status</th></tr></thead>
+                <tbody id="simLogBody">
+                    <tr><td colspan="5" class="text-center text-muted py-4">Click "Start Simulation" to fire requests</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+    const nodeCounts = {};
+    let okCount = 0, errCount = 0, reqNum = 0, running = false;
+
+    document.getElementById('reqCount').addEventListener('input', function(){ document.getElementById('reqCountLabel').textContent = this.value + ' requests'; });
+    document.getElementById('reqDelay').addEventListener('input', function(){ document.getElementById('reqDelayLabel').textContent = this.value + 'ms'; });
+
+    const chart = new Chart(document.getElementById('distChart').getContext('2d'), {
+        type:'bar', data:{labels:[],datasets:[{label:'Requests',data:[],backgroundColor:['#0d6efd','#198754','#ffc107','#dc3545']}]},
+        options:{indexAxis:'y',scales:{x:{beginAtZero:true,ticks:{stepSize:1}}},plugins:{legend:{display:false}},animation:{duration:200}}
+    });
+
+    function updateChart() {
+        chart.data.labels = Object.keys(nodeCounts);
+        chart.data.datasets[0].data = Object.values(nodeCounts);
+        chart.update();
+        document.getElementById('nodeCounters').innerHTML = Object.entries(nodeCounts).map(([n,c]) =>
+            `<div class="col-auto"><div class="counter-chip"><span class="cc-node">${n}</span><span class="cc-count">${c}</span><span class="cc-label">requests</span></div></div>`).join('');
+    }
+
+    async function runSimulation() {
+        if (running) return;
+        running = true;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('startBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Running…';
+        const total = parseInt(document.getElementById('reqCount').value);
+        const delay = parseInt(document.getElementById('reqDelay').value);
+        document.getElementById('simLogBody').innerHTML = '';
+
+        for (let i = 0; i < total; i++) {
+            reqNum++;
+            const start = performance.now();
+            try {
+                const data = await (await fetch('/api/simulate')).json();
+                const latency = Math.round(performance.now() - start);
+                const node = data.instanceId || 'unknown';
+                nodeCounts[node] = (nodeCounts[node] || 0) + 1;
+                okCount++;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${reqNum}</td><td><strong>${node}</strong></td><td>${data.port}</td><td>${latency}ms</td><td><span class="badge bg-success">OK</span></td>`;
+                document.getElementById('simLogBody').prepend(tr);
+                document.getElementById('totalOk').textContent = okCount + ' OK';
+                updateChart();
+            } catch(e) {
+                errCount++;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${reqNum}</td><td>ERROR</td><td>—</td><td>—</td><td><span class="badge bg-danger">ERR</span></td>`;
+                document.getElementById('simLogBody').prepend(tr);
+                document.getElementById('totalErr').textContent = errCount + ' ERR';
+            }
+            document.getElementById('simStatus').textContent = `${i+1} / ${total} sent`;
+            if (delay > 0) await new Promise(r => setTimeout(r, delay));
+        }
+        document.getElementById('simStatus').textContent = `Done — ${total} requests completed.`;
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('startBtn').innerHTML = '<i class="bi bi-play-fill me-2"></i>Start Simulation';
+        running = false;
+    }
+
+    document.getElementById('startBtn').addEventListener('click', runSimulation);
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        document.getElementById('simLogBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Click "Start Simulation" to fire requests</td></tr>';
+        Object.keys(nodeCounts).forEach(k => delete nodeCounts[k]);
+        okCount = errCount = reqNum = 0;
+        document.getElementById('totalOk').textContent = '0 OK';
+        document.getElementById('totalErr').textContent = '0 ERR';
+        document.getElementById('simStatus').textContent = 'Ready';
+        document.getElementById('nodeCounters').innerHTML = '';
+        chart.data.labels = []; chart.data.datasets[0].data = []; chart.update();
+    });
+</script>
+</body>
+</html>
