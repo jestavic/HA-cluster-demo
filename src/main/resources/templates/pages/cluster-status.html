@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Cluster Status — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <h1 class="page-title"><i class="bi bi-activity me-2"></i>Live Cluster Status</h1>
+        <p class="page-subtitle">Real-time health of all registered cluster nodes — auto-refreshes every 5 seconds</p>
+    </div>
+</div>
+
+<div class="container py-4">
+
+    <div class="this-node-card mb-4">
+        <h5 class="mb-1"><span class="status-dot-green"></span>This Instance Is Responding</h5>
+        <div class="d-flex flex-wrap gap-3 mt-2">
+            <span class="info-chip"><i class="bi bi-cpu me-1"></i>Node: <strong th:text="${instanceId}">node-1</strong></span>
+            <span class="info-chip"><i class="bi bi-hdd-network me-1"></i>Port: <strong th:text="${serverPort}">8080</strong></span>
+            <span class="info-chip"><i class="bi bi-key me-1"></i>Session: <code th:text="${#strings.abbreviate(sessionId,16)}">abc...</code></span>
+        </div>
+    </div>
+
+    <div class="row g-4" id="nodeCards">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Polling node health endpoints…</p>
+        </div>
+    </div>
+
+    <div class="legend-bar mt-4">
+        <span class="legend-item"><span class="ld-dot ld-green"></span>UP — Healthy</span>
+        <span class="legend-item"><span class="ld-dot ld-red"></span>DOWN — Unreachable</span>
+        <span class="legend-item"><span class="ld-dot ld-yellow"></span>SLOW — Response &gt;500ms</span>
+    </div>
+
+    <div class="info-card mt-4">
+        <h5 class="mb-3"><i class="bi bi-list-ul me-2"></i>Request Log <span class="badge bg-secondary ms-2" id="reqCount">0</span></h5>
+        <div class="table-responsive">
+            <table class="table table-sm mono-table">
+                <thead><tr><th>Time</th><th>Node</th><th>Port</th><th>Latency</th><th>Status</th></tr></thead>
+                <tbody id="reqLogBody">
+                    <tr><td colspan="5" class="text-center text-muted py-3">Waiting for first poll…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+<script>
+    const NODES = [
+        { label:'Node 1', url:'/api/health', port:'8080' },
+        { label:'Node 2', url:'http://localhost:8081/api/health', port:'8081', external:true }
+    ];
+    let reqCount = 0;
+
+    async function pollNode(node) {
+        const start = performance.now();
+        try {
+            const res = await fetch(node.url, { signal: AbortSignal.timeout(3000) });
+            const latency = Math.round(performance.now() - start);
+            const data = res.ok ? await res.json() : null;
+            return { ok: true, latency, data, node };
+        } catch(e) {
+            return { ok: false, latency: Math.round(performance.now() - start), data: null, node };
+        }
+    }
+
+    function buildCard(r) {
+        const status = r.ok ? (r.latency > 500 ? 'SLOW' : 'UP') : 'DOWN';
+        const sc = status === 'UP' ? 'success' : (status === 'SLOW' ? 'warning' : 'danger');
+        const dot = status === 'UP' ? 'ld-green' : (status === 'SLOW' ? 'ld-yellow' : 'ld-red');
+        return `<div class="col-md-6"><div class="node-status-card border-${sc}">
+            <div class="nsc-header"><span class="ld-dot ${dot}"></span><strong>${r.data ? r.data.instanceId : r.node.label}</strong><span class="badge bg-${sc} ms-auto">${status}</span></div>
+            <div class="nsc-body">
+                <div class="nsc-row"><i class="bi bi-hdd-network me-2 text-muted"></i>Port<span>${r.node.port}</span></div>
+                <div class="nsc-row"><i class="bi bi-speedometer me-2 text-muted"></i>Latency<span>${r.latency}ms</span></div>
+                <div class="nsc-row"><i class="bi bi-clock me-2 text-muted"></i>Uptime<span>${r.data ? r.data.uptimeSeconds+'s' : '—'}</span></div>
+                <div class="nsc-row"><i class="bi bi-memory me-2 text-muted"></i>Heap<span>${r.data ? r.data.heapPercent+'%' : '—'}</span></div>
+            </div></div></div>`;
+    }
+
+    async function refresh() {
+        const results = await Promise.all(NODES.map(pollNode));
+        document.getElementById('nodeCards').innerHTML = results.map(buildCard).join('');
+        results.forEach(r => {
+            const status = r.ok ? (r.latency > 500 ? 'SLOW' : 'UP') : 'DOWN';
+            const sc = status === 'UP' ? 'success' : (status === 'SLOW' ? 'warning' : 'danger');
+            const tbody = document.getElementById('reqLogBody');
+            if (tbody.rows[0] && tbody.rows[0].cells.length === 1) tbody.innerHTML = '';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${new Date().toTimeString().split(' ')[0]}</td><td>${r.data ? r.data.instanceId : r.node.label}</td><td>${r.node.port}</td><td>${r.latency}ms</td><td><span class="badge bg-${sc}">${status}</span></td>`;
+            tbody.prepend(tr);
+            if (tbody.rows.length > 20) tbody.deleteRow(tbody.rows.length - 1);
+            reqCount++;
+            document.getElementById('reqCount').textContent = reqCount;
+        });
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+</script>
+</body>
+</html>
