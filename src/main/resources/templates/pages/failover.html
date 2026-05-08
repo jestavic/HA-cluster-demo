@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Failover — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <h1 class="page-title"><i class="bi bi-shield-check me-2"></i>Failover Demonstration</h1>
+        <p class="page-subtitle">How the cluster handles node failure with zero session loss</p>
+    </div>
+</div>
+
+<div class="container py-4">
+
+    <div class="info-card mb-4">
+        <h5><i class="bi bi-question-circle me-2"></i>What is Failover?</h5>
+        <p class="mb-0">When Node 1 goes down, Nginx detects the failure via health checks and routes all traffic to Node 2. Because sessions live in Redis — not inside any node — users stay logged in with zero interruption.</p>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="info-card h-100">
+                <h5 class="mb-4"><i class="bi bi-list-ol me-2"></i>Failover Steps</h5>
+                <div class="fsi-step"><div class="fsi-num">1</div><div><strong>Both nodes running</strong><p class="text-muted small mb-0">Nginx distributes traffic between Node 1 and Node 2.</p></div><span class="fsi-badge badge bg-success">Normal</span></div>
+                <div class="fsi-connector"></div>
+                <div class="fsi-step"><div class="fsi-num">2</div><div><strong>Node 1 fails</strong><p class="text-muted small mb-0">Run: <code>docker stop ha-node-1</code></p></div><span class="fsi-badge badge bg-danger">Failure</span></div>
+                <div class="fsi-connector"></div>
+                <div class="fsi-step"><div class="fsi-num">3</div><div><strong>Nginx detects failure</strong><p class="text-muted small mb-0">Health check fails 3 times → Node 1 marked DOWN.</p></div><span class="fsi-badge badge bg-warning text-dark">Detecting</span></div>
+                <div class="fsi-connector"></div>
+                <div class="fsi-step"><div class="fsi-num">4</div><div><strong>Traffic goes to Node 2</strong><p class="text-muted small mb-0">User notices nothing — session intact in Redis.</p></div><span class="fsi-badge badge bg-success">Recovered</span></div>
+                <div class="fsi-connector"></div>
+                <div class="fsi-step"><div class="fsi-num">5</div><div><strong>Node 1 restarts</strong><p class="text-muted small mb-0">Run: <code>docker start ha-node-1</code> — Nginx re-adds it.</p></div><span class="fsi-badge badge bg-primary">Restored</span></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="info-card h-100">
+                <h5 class="mb-3"><i class="bi bi-database-check me-2"></i>Live Session Watch</h5>
+                <p class="text-muted small">Refreshes every 3 seconds. Stop Node 1 and watch this box continue updating via Node 2.</p>
+                <div class="session-live-box mb-3">
+                    <div class="slb-row"><span>Session ID</span><code th:text="${#strings.abbreviate(sessionId,20)}">—</code></div>
+                    <div class="slb-row"><span>Served by Node</span><strong id="sl-node">Polling…</strong></div>
+                    <div class="slb-row"><span>Server Port</span><strong id="sl-port">—</strong></div>
+                    <div class="slb-row"><span>Session Store</span><span class="badge bg-danger">Redis</span></div>
+                    <div class="slb-row"><span>Last Refresh</span><span id="sl-time">—</span></div>
+                </div>
+                <p class="text-muted small mb-1"><strong>Node change history:</strong></p>
+                <div id="nodeHistory" class="node-history"><div class="text-muted small">Waiting for first poll…</div></div>
+                <div class="text-center mt-2">
+                    <span class="spinner-border spinner-border-sm text-primary me-1"></span>
+                    <span class="text-muted small">Polling /api/instance-info every 3s</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-card mb-4">
+        <h5 class="mb-3"><i class="bi bi-terminal me-2"></i>Commands to Try</h5>
+        <div class="row g-3">
+            <div class="col-md-6"><div class="cmd-block"><div class="cmd-label">Stop Node 1</div><code>docker stop ha-node-1</code></div></div>
+            <div class="col-md-6"><div class="cmd-block"><div class="cmd-label">Restart Node 1</div><code>docker start ha-node-1</code></div></div>
+            <div class="col-md-6"><div class="cmd-block"><div class="cmd-label">Check Node 1 health</div><code>curl http://localhost:8080/api/health</code></div></div>
+            <div class="col-md-6"><div class="cmd-block"><div class="cmd-label">Check Redis sessions</div><code>docker exec ha-redis redis-cli keys "ha:session:*"</code></div></div>
+        </div>
+    </div>
+
+    <div class="info-card">
+        <h5 class="mb-3"><i class="bi bi-code-slash me-2"></i>Nginx Failover Config</h5>
+        <pre class="code-block">upstream ha_cluster {
+    server app1:8080 max_fails=3 fail_timeout=30s;
+    server app2:8080 max_fails=3 fail_timeout=30s;
+}
+
+location / {
+    proxy_pass http://ha_cluster;
+    proxy_next_upstream error timeout http_502 http_503;
+}</pre>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+<script>
+    let lastNode = null;
+    async function pollInstance() {
+        try {
+            const d = await (await fetch('/api/instance-info')).json();
+            document.getElementById('sl-node').textContent = d.instanceId;
+            document.getElementById('sl-port').textContent = d.port;
+            document.getElementById('sl-time').textContent = new Date().toTimeString().split(' ')[0];
+            if (lastNode !== d.instanceId) {
+                const box = document.getElementById('nodeHistory');
+                if (box.querySelector('.text-muted')) box.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = 'nh-entry' + (lastNode ? ' nh-change' : '');
+                div.innerHTML = `<span class="nh-time">${new Date().toTimeString().split(' ')[0]}</span> → <strong>${d.instanceId}</strong>:${d.port}`;
+                box.prepend(div);
+                if (box.children.length > 8) box.lastChild.remove();
+                lastNode = d.instanceId;
+            }
+        } catch(e) {
+            document.getElementById('sl-node').textContent = 'UNREACHABLE';
+            document.getElementById('sl-node').className = 'text-danger';
+        }
+    }
+    pollInstance();
+    setInterval(pollInstance, 3000);
+</script>
+</body>
+</html>
