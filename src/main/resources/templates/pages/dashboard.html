@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Dashboard — HA Cluster Demo</title>
+</head>
+<body>
+
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="page-title mb-1"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h1>
+                <p class="page-subtitle mb-0">Welcome back, <strong th:text="${username}">student</strong></p>
+            </div>
+            <div class="node-badge-lg">
+                <span class="nb-dot"></span>
+                Served by <strong th:text="${instanceId}">node-1</strong> &nbsp;:&nbsp;<span th:text="${serverPort}">8080</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+
+    <div class="session-info-bar mb-4">
+        <div class="row g-2 align-items-center">
+            <div class="col-auto"><i class="bi bi-key-fill text-warning"></i></div>
+            <div class="col">
+                <strong>Active Session</strong> —
+                ID: <code th:text="${sessionId}">abc123</code> &nbsp;|&nbsp;
+                Store: <span class="badge bg-danger">Redis</span> &nbsp;|&nbsp;
+                This session persists even if this node restarts.
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-green">
+                <div class="stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                <div class="stat-value">ONLINE</div>
+                <div class="stat-label">Node Status</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-blue">
+                <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+                <div class="stat-value" th:text="${instanceUptime}">0h 0m</div>
+                <div class="stat-label">Node Uptime</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-orange">
+                <div class="stat-icon"><i class="bi bi-memory"></i></div>
+                <div class="stat-value" th:text="${heapPercent + '%'}">45%</div>
+                <div class="stat-label">Heap Usage</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card stat-purple">
+                <div class="stat-icon"><i class="bi bi-journal-text"></i></div>
+                <div class="stat-value" th:text="${noteCount}">0</div>
+                <div class="stat-label">Cluster Notes</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="info-card mb-4">
+        <div class="d-flex justify-content-between mb-2">
+            <span><i class="bi bi-memory me-2"></i>JVM Heap Memory</span>
+            <span th:text="${usedHeapMb + ' MB / ' + maxHeapMb + ' MB'}">— MB</span>
+        </div>
+        <div class="progress" style="height:10px;">
+            <div class="progress-bar"
+                 th:classappend="${heapPercent > 80 ? 'bg-danger' : (heapPercent > 60 ? 'bg-warning' : 'bg-success')}"
+                 th:style="'width:' + ${heapPercent} + '%'" role="progressbar"></div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-4"><a href="/notes" class="dash-link-card"><i class="bi bi-journal-plus"></i><strong>Cluster Notes</strong><small>Create and view distributed notes</small></a></div>
+        <div class="col-md-4"><a href="/monitor" class="dash-link-card"><i class="bi bi-cpu"></i><strong>Node Monitor</strong><small>Live system health metrics</small></a></div>
+        <div class="col-md-4"><a href="/simulate" class="dash-link-card"><i class="bi bi-shuffle"></i><strong>Load Simulator</strong><small>Watch requests distribute across nodes</small></a></div>
+        <div class="col-md-4"><a href="/failover" class="dash-link-card"><i class="bi bi-shield-check"></i><strong>Failover Demo</strong><small>Simulate node failure and recovery</small></a></div>
+        <div class="col-md-4"><a href="/cluster-status" class="dash-link-card"><i class="bi bi-activity"></i><strong>Cluster Status</strong><small>See all node health statuses</small></a></div>
+        <div class="col-md-4"><a href="/architecture" class="dash-link-card"><i class="bi bi-diagram-3"></i><strong>Architecture</strong><small>Explore the system design</small></a></div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+</body>
+</html>
