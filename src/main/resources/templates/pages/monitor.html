@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Monitor — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <h1 class="page-title"><i class="bi bi-cpu me-2"></i>Node Health Monitor</h1>
+        <p class="page-subtitle">Live JVM and system metrics — refreshes every 3 seconds</p>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-lg-3"><div class="metric-card"><div class="mc-label">Node Status</div><div class="mc-value text-success" id="m-status">—</div><div class="mc-sub" id="m-instance">Polling…</div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="metric-card"><div class="mc-label">Heap Usage</div><div class="mc-value" id="m-heap">—</div><div class="mc-sub" id="m-heap-detail">MB</div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="metric-card"><div class="mc-label">Uptime</div><div class="mc-value" id="m-uptime">—</div><div class="mc-sub">seconds</div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="metric-card"><div class="mc-label">CPU Cores</div><div class="mc-value" id="m-cpu">—</div><div class="mc-sub" id="m-load">load avg</div></div></div>
+    </div>
+
+    <div class="info-card mb-4">
+        <div class="d-flex justify-content-between mb-2">
+            <span><i class="bi bi-memory me-2"></i>JVM Heap Memory</span>
+            <span id="heap-bar-label">—</span>
+        </div>
+        <div class="progress" style="height:14px;">
+            <div class="progress-bar bg-success" id="heap-bar" role="progressbar" style="width:0%"></div>
+        </div>
+    </div>
+
+    <div class="info-card mb-4">
+        <h5 class="mb-3"><i class="bi bi-server me-2"></i>Instance Information</h5>
+        <table class="table table-sm mono-table mb-0">
+            <tbody>
+                <tr><th width="180">Instance ID</th><td id="t-instance">—</td></tr>
+                <tr><th>Server Port</th><td id="t-port">—</td></tr>
+                <tr><th>Version</th><td id="t-version">—</td></tr>
+                <tr><th>Timestamp</th><td id="t-ts">—</td></tr>
+                <tr><th>Session ID</th><td th:text="${sessionId}">—</td></tr>
+                <tr><th>Session Store</th><td><span class="badge bg-danger">Redis</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="info-card">
+        <h5 class="mb-3"><i class="bi bi-graph-up me-2"></i>Heap Usage History (last 20 samples)</h5>
+        <canvas id="heapChart" height="80"></canvas>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+    const heapHistory = [], labels = [];
+    const chart = new Chart(document.getElementById('heapChart').getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Heap %', data: heapHistory, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', tension: 0.4, fill: true, pointRadius: 3 }] },
+        options: { scales: { y: { min:0, max:100, ticks:{ callback: v => v+'%' } }, x: { ticks:{ maxTicksLimit:8 } } }, plugins:{ legend:{ display:false } }, animation:{ duration:300 } }
+    });
+
+    async function poll() {
+        try {
+            const d = await (await fetch('/api/health')).json();
+            document.getElementById('m-status').textContent = d.status;
+            document.getElementById('m-instance').textContent = d.instanceId;
+            document.getElementById('m-heap').textContent = d.heapPercent + '%';
+            document.getElementById('m-heap-detail').textContent = `${d.heapUsedMb} MB / ${d.heapMaxMb} MB`;
+            document.getElementById('m-uptime').textContent = d.uptimeSeconds;
+            document.getElementById('m-cpu').textContent = d.processors;
+            document.getElementById('m-load').textContent = 'load: ' + (d.loadAverage >= 0 ? d.loadAverage.toFixed(2) : 'N/A');
+            document.getElementById('heap-bar-label').textContent = `${d.heapUsedMb} MB / ${d.heapMaxMb} MB (${d.heapPercent}%)`;
+            const bar = document.getElementById('heap-bar');
+            bar.style.width = d.heapPercent + '%';
+            bar.className = 'progress-bar ' + (d.heapPercent > 80 ? 'bg-danger' : d.heapPercent > 60 ? 'bg-warning' : 'bg-success');
+            document.getElementById('t-instance').textContent = d.instanceId;
+            document.getElementById('t-port').textContent = d.port;
+            document.getElementById('t-version').textContent = d.version;
+            document.getElementById('t-ts').textContent = d.timestamp;
+            heapHistory.push(d.heapPercent);
+            labels.push(new Date(d.timestamp).toTimeString().split(' ')[0]);
+            if (heapHistory.length > 20) { heapHistory.shift(); labels.shift(); }
+            chart.update();
+        } catch(e) { document.getElementById('m-status').textContent = 'ERROR'; }
+    }
+    poll();
+    setInterval(poll, 3000);
+</script>
+</body>
+</html>
