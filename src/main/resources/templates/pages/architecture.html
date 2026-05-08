@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Architecture — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-5">
+        <h1 class="page-title"><i class="bi bi-diagram-3 me-2"></i>System Architecture</h1>
+        <p class="page-subtitle">How the high availability cluster is designed and connected</p>
+    </div>
+</div>
+
+<div class="container py-5">
+
+    <div class="arch-diagram-card mb-5">
+        <h5 class="card-section-title mb-4"><i class="bi bi-diagram-3 me-2"></i>Request Flow</h5>
+        <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 text-center">
+            <div class="af-box af-client"><i class="bi bi-person-circle"></i><span>Client</span></div>
+            <div class="text-muted">→ HTTP :80 →</div>
+            <div class="af-box af-lb"><i class="bi bi-arrow-left-right"></i><span>Nginx LB</span></div>
+            <div class="text-muted">→ round-robin →</div>
+            <div class="d-flex flex-column gap-2">
+                <div class="af-box af-node active-node"><i class="bi bi-server"></i><span>Node 1 :8080</span></div>
+                <div class="af-box af-node"><i class="bi bi-server"></i><span>Node 2 :8081</span></div>
+            </div>
+            <div class="text-muted">→</div>
+            <div class="d-flex flex-column gap-2">
+                <div class="af-box af-redis"><i class="bi bi-database-fill"></i><span>Redis Sessions</span></div>
+                <div class="af-box af-db"><i class="bi bi-hdd-stack"></i><span>PostgreSQL</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="arch-card">
+                <div class="arch-card-header"><i class="bi bi-arrow-left-right text-warning"></i><h5>Nginx — Load Balancer</h5></div>
+                <p>Acts as the single entry point. Distributes traffic across nodes using round-robin and detects failures via health checks.</p>
+                <ul class="arch-list">
+                    <li><i class="bi bi-check2 text-success"></i> Round-robin request distribution</li>
+                    <li><i class="bi bi-check2 text-success"></i> Auto-removes failed nodes</li>
+                    <li><i class="bi bi-check2 text-success"></i> Forwards X-Forwarded-For headers</li>
+                </ul>
+                <div class="code-snippet">upstream ha_cluster {
+  server app1:8080;
+  server app2:8080;
+}</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="arch-card">
+                <div class="arch-card-header"><i class="bi bi-cup-hot-fill text-warning"></i><h5>Spring Boot — App Nodes</h5></div>
+                <p>Multiple <strong>stateless</strong> instances run in parallel. Any node can handle any request because no local state is stored.</p>
+                <ul class="arch-list">
+                    <li><i class="bi bi-check2 text-success"></i> Stateless design (Redis for sessions)</li>
+                    <li><i class="bi bi-check2 text-success"></i> Unique INSTANCE_ID per container</li>
+                    <li><i class="bi bi-check2 text-success"></i> /api/health endpoint exposed</li>
+                </ul>
+                <div class="code-snippet">INSTANCE_ID=node-1
+SERVER_PORT=8080</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="arch-card">
+                <div class="arch-card-header"><i class="bi bi-database-fill text-danger"></i><h5>Redis — Session Store</h5></div>
+                <p>Centralised session store. Login on Node 1, next request on Node 2 — Redis keeps you authenticated seamlessly.</p>
+                <ul class="arch-list">
+                    <li><i class="bi bi-check2 text-success"></i> Spring Session Data Redis</li>
+                    <li><i class="bi bi-check2 text-success"></i> Sessions survive node restarts</li>
+                    <li><i class="bi bi-check2 text-success"></i> 30-minute TTL expiry</li>
+                </ul>
+                <div class="code-snippet">spring.session.store-type=redis
+spring.session.timeout=30m</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="arch-card">
+                <div class="arch-card-header"><i class="bi bi-hdd-stack text-info"></i><h5>PostgreSQL — Database</h5></div>
+                <p>All nodes share one PostgreSQL instance. Notes created on Node 1 are immediately readable on Node 2.</p>
+                <ul class="arch-list">
+                    <li><i class="bi bi-check2 text-success"></i> Shared data layer</li>
+                    <li><i class="bi bi-check2 text-success"></i> Spring Data JPA + Hibernate</li>
+                    <li><i class="bi bi-check2 text-success"></i> HikariCP connection pooling</li>
+                </ul>
+                <div class="code-snippet">spring.jpa.hibernate.ddl-auto=update</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="arch-diagram-card">
+        <h5 class="card-section-title mb-3"><i class="bi bi-shield-check me-2"></i>Failover Flow</h5>
+        <ol class="failover-steps">
+            <li><span class="step-num">1</span> Node 1 becomes unavailable (crash or stop).</li>
+            <li><span class="step-num">2</span> Nginx detects failure on its next health check.</li>
+            <li><span class="step-num">3</span> Nginx marks Node 1 as DOWN and stops routing to it.</li>
+            <li><span class="step-num">4</span> All traffic goes to Node 2 automatically.</li>
+            <li><span class="step-num">5</span> Session still in Redis — users stay logged in.</li>
+            <li><span class="step-num">6</span> Node 1 restarts → health check passes → Nginx re-adds it.</li>
+        </ol>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+</body>
+</html>
