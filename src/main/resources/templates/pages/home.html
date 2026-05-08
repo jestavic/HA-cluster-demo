@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Home — HA Cluster Demo</title>
+</head>
+<body>
+
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<section class="hero-section">
+    <div class="hero-grid-bg"></div>
+    <div class="container py-5">
+        <div class="row align-items-center min-vh-75">
+            <div class="col-lg-7">
+                <div class="hero-tag mb-3">
+                    <span class="tag-dot"></span>
+                    College Project — Distributed Systems
+                </div>
+                <h1 class="hero-title">High Availability<br><span class="accent-text">Cluster Systems</span></h1>
+                <p class="hero-subtitle mt-3">
+                    A hands-on demonstration of load balancing, session sharing, failover, and health monitoring
+                    using Spring Boot, Redis, PostgreSQL, Nginx, and Docker.
+                </p>
+                <div class="d-flex flex-wrap gap-3 mt-4">
+                    <a href="/architecture" class="btn btn-primary btn-lg">
+                        <i class="bi bi-diagram-3 me-2"></i>Explore Architecture
+                    </a>
+                    <a href="/cluster-status" class="btn btn-outline-light btn-lg">
+                        <i class="bi bi-activity me-2"></i>Live Status
+                    </a>
+                </div>
+                <div class="hero-meta mt-4">
+                    <span class="meta-item"><i class="bi bi-server me-1"></i>Node: <strong th:text="${instanceId}">node-1</strong></span>
+                    <span class="meta-item"><i class="bi bi-hdd-network me-1"></i>Port: <strong th:text="${serverPort}">8080</strong></span>
+                    <span class="meta-item"><i class="bi bi-shield-check me-1"></i>Status: <strong class="text-success">ONLINE</strong></span>
+                </div>
+            </div>
+            <div class="col-lg-5 d-none d-lg-flex justify-content-center">
+                <div class="cluster-visual">
+                    <div class="cv-center">LB</div>
+                    <div class="cv-node cv-node-1">N1</div>
+                    <div class="cv-node cv-node-2">N2</div>
+                    <div class="cv-db">DB</div>
+                    <div class="cv-redis">Redis</div>
+                    <svg class="cv-lines" viewBox="0 0 300 300">
+                        <line x1="150" y1="130" x2="80" y2="180" class="cv-line"/>
+                        <line x1="150" y1="130" x2="220" y2="180" class="cv-line"/>
+                        <line x1="80" y1="210" x2="50" y2="260" class="cv-line-db"/>
+                        <line x1="220" y1="210" x2="250" y2="260" class="cv-line-db"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="concepts-section py-5">
+    <div class="container">
+        <h2 class="section-title text-center mb-5">Core Concepts</h2>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-arrows-angle-expand"></i></div>
+                    <h5>High Availability</h5>
+                    <p>Systems designed to operate continuously without failure, achieved through redundancy and automatic failover.</p>
+                    <div class="cc-tag">Target: 99.9% Uptime</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-distribute-horizontal"></i></div>
+                    <h5>Load Balancing</h5>
+                    <p>Distributes incoming network traffic across multiple backend nodes so no single instance is overwhelmed.</p>
+                    <div class="cc-tag">Strategy: Round Robin</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-shield-check"></i></div>
+                    <h5>Failover</h5>
+                    <p>Automatic switching to a standby node when the active node fails, minimising downtime for users.</p>
+                    <div class="cc-tag">Type: Active-Active</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-database-check"></i></div>
+                    <h5>Session Sharing</h5>
+                    <p>Redis stores sessions centrally so users stay logged in even when requests hit different nodes.</p>
+                    <div class="cc-tag">Store: Redis</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-heart-pulse"></i></div>
+                    <h5>Health Monitoring</h5>
+                    <p>Each node exposes a health endpoint. The load balancer polls these continuously to detect failures.</p>
+                    <div class="cc-tag">Endpoint: /api/health</div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="concept-card">
+                    <div class="cc-icon"><i class="bi bi-boxes"></i></div>
+                    <h5>Containerisation</h5>
+                    <p>Docker containers package each component for consistent, reproducible deployments anywhere.</p>
+                    <div class="cc-tag">Tool: Docker Compose</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="stack-section py-5">
+    <div class="container">
+        <h2 class="section-title text-center mb-4">Technology Stack</h2>
+        <div class="row justify-content-center g-3">
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-cup-hot-fill me-2 text-warning"></i>Spring Boot 3.5</div></div>
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-database-fill me-2 text-danger"></i>Redis Session</div></div>
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-server me-2 text-info"></i>PostgreSQL</div></div>
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-arrow-left-right me-2 text-success"></i>Nginx LB</div></div>
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-boxes me-2 text-primary"></i>Docker</div></div>
+            <div class="col-auto"><div class="tech-pill"><i class="bi bi-bootstrap me-2"></i>Bootstrap 5</div></div>
+        </div>
+    </div>
+</section>
+
+<section class="session-bar py-3">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h6 class="mb-1 text-muted">Your session is being served by:</h6>
+                <div class="d-flex flex-wrap gap-3">
+                    <span class="sb-item"><i class="bi bi-cpu me-1"></i>Node: <strong th:text="${instanceId}">node-1</strong></span>
+                    <span class="sb-item"><i class="bi bi-hdd-network me-1"></i>Port: <strong th:text="${serverPort}">8080</strong></span>
+                    <span class="sb-item"><i class="bi bi-key me-1"></i>Session: <code th:text="${#strings.abbreviate(sessionId, 20)}">abc...</code></span>
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                <a href="/login" class="btn btn-primary btn-sm"><i class="bi bi-lock me-1"></i>Login to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+</body>
+</html>
