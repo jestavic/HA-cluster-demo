@@ -1,0 +1,142 @@
+# =========================================================
+# HA Cluster Demo — Docker Compose
+# Services: nginx (LB), app1 (node-1), app2 (node-2),
+#           redis (sessions), postgres (database)
+# =========================================================
+
+services:
+
+  # ─── Nginx Load Balancer ─────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ha-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+    networks:
+      - cluster-net
+    restart: unless-stopped
+
+  # ─── App Node 1 ───────────────────────────────────────
+  app1:
+    build: .
+    container_name: ha-node-1
+    environment:
+      INSTANCE_ID: node-1
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: hacluster
+      DB_USER: hauser
+      DB_PASS: hapassword
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8080:8080"      # Direct access for demo/testing
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cluster-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ─── App Node 2 ───────────────────────────────────────
+  app2:
+    build: .
+    container_name: ha-node-2
+    environment:
+      INSTANCE_ID: node-2
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: hacluster
+      DB_USER: hauser
+      DB_PASS: hapassword
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8081:8080"      # Different host port — direct access for demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cluster-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ─── Redis Session Store ──────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: ha-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - cluster-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── PostgreSQL Database ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ha-postgres
+    environment:
+      POSTGRES_DB: hacluster
+      POSTGRES_USER: hauser
+      POSTGRES_PASSWORD: hapassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - cluster-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hauser -d hacluster"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+# ─── Volumes ─────────────────────────────────────────────
+volumes:
+  redis-data:
+    driver: local
+  pg-data:
+    driver: local
+
+# ─── Network ─────────────────────────────────────────────
+networks:
+  cluster-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
