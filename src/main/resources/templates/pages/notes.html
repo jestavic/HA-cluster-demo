@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head>
+    <th:block th:insert="~{fragments/common :: head}"></th:block>
+    <title>Cluster Notes — HA Cluster Demo</title>
+</head>
+<body>
+<div th:insert="~{fragments/common :: navbar}"></div>
+
+<div class="page-header">
+    <div class="container py-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="page-title mb-1"><i class="bi bi-journal-text me-2"></i>Cluster Notes</h1>
+                <p class="page-subtitle mb-0">Shared notes in PostgreSQL — readable from any node</p>
+            </div>
+            <div class="node-badge-lg"><span class="nb-dot"></span>Writing from <strong th:text="${instanceId}">node-1</strong></div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show d-flex align-items-center">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <div th:text="${successMessage}">Success</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="info-card sticky-top" style="top:80px;">
+                <h5 class="mb-3"><i class="bi bi-plus-circle me-2"></i>New Note</h5>
+                <form th:action="@{/notes/create}" method="post" th:object="${newNote}">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input type="text" th:field="*{title}" class="form-control"
+                               th:classappend="${#fields.hasErrors('title')} ? 'is-invalid'"
+                               placeholder="e.g. Node 2 high memory">
+                        <div class="invalid-feedback" th:if="${#fields.hasErrors('title')}" th:errors="*{title}"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Content <span class="text-danger">*</span></label>
+                        <textarea th:field="*{content}" class="form-control"
+                                  th:classappend="${#fields.hasErrors('content')} ? 'is-invalid'"
+                                  rows="4" placeholder="Describe your observation…"></textarea>
+                        <div class="invalid-feedback" th:if="${#fields.hasErrors('content')}" th:errors="*{content}"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Tagged to node:</label>
+                        <input type="text" class="form-control form-control-sm" th:value="${instanceId}" readonly>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-save me-2"></i>Save Note</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div th:if="${#lists.isEmpty(notes)}" class="empty-state">
+                <i class="bi bi-journal-x empty-icon"></i>
+                <h5>No cluster notes yet</h5>
+                <p class="text-muted">Create the first note using the form on the left.</p>
+            </div>
+
+            <div th:unless="${#lists.isEmpty(notes)}" class="row g-3">
+                <div class="col-12" th:each="note : ${notes}">
+                    <div class="note-card">
+                        <div class="note-card-header">
+                            <div class="d-flex align-items-start gap-2 flex-grow-1">
+                                <i class="bi bi-file-earmark-text text-primary mt-1"></i>
+                                <div>
+                                    <h6 class="mb-0" th:text="${note.title}">Title</h6>
+                                    <div class="d-flex flex-wrap gap-2 mt-1">
+                                        <span class="badge bg-secondary" th:text="'Node: ' + ${note.nodeTag}">node-1</span>
+                                        <span class="badge bg-dark" th:text="'By: ' + ${note.author}">student</span>
+                                        <span class="text-muted small" th:text="${#temporals.format(note.createdAt, 'dd MMM yyyy HH:mm')}">date</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="note-actions">
+                                <a th:href="@{/notes/edit/{id}(id=${note.id})}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                                <form th:action="@{/notes/delete/{id}(id=${note.id})}" method="post" class="d-inline" onsubmit="return confirm('Delete this note?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </div>
+                        </div>
+                        <p class="note-content" th:text="${note.content}">Content</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/common :: footer}"></div>
+<div th:insert="~{fragments/common :: scripts}"></div>
+</body>
+</html>
